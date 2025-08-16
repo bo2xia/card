@@ -838,7 +838,6 @@ show_help() {
     echo "  $0 --fix              # 仅修复当前容器"
     echo "  $0 --rebuild          # 强制重新部署"
 }
-  echo "  $0 certbot-init --domain km.videox.xyz --email 279208009@qq.com  # 一次性签发免费证书 (Standalone)"
 
 # 解析命令行参数
 parse_args() {
