@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  card-query-app:
+    build: .
+    container_name: card-query-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    env_file:
+      - .env
+    environment:
+      # Python环境配置
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONIOENCODING=utf-8
+
+    # 移除重复的volumes和ports配置
+      
+    networks:
+      - card-query-network
+      
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+# 网络配置
+networks:
+  card-query-network:
+    driver: bridge
+    name: card-query-network

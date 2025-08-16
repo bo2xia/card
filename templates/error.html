@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误</title>
+    <link href="/static/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { max-width: 400px; }
+        .card { border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card p-4 text-center">
+            <h1 class="mb-4">错误</h1>
+            <p class="text-danger">{{ error | e }}</p>
+            <a href="{{ url_for('admin') }}" class="btn btn-primary">返回管理首页</a>
+        </div>
+    </div>
+    <script src="/static/bootstrap.bundle.min.js"></script>
+</body>
+</html>

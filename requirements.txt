@@ -1,0 +1,29 @@
+# Web框架 - 稳定版本
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+
+# SQLite数据库驱动（Python内置，无需安装）
+# sqlite3 - Python内置模块
+
+# SQLAlchemy 核心组件
+SQLAlchemy==2.0.23
+alembic==1.13.1
+
+# HTTP客户端
+requests==2.31.0
+
+# WSGI生产服务器
+gunicorn==21.2.0
+
+# 环境配置
+python-dotenv==1.0.0
+
+# 工具库
+click==8.1.7
+
+# 数据库连接池和监控
+sqlalchemy-utils==0.41.1
+
+# 时间处理
+pytz==2023.3

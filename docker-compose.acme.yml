@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  acme_issue:
+    image: neilpang/acme.sh:latest
+    container_name: acme-issue
+    env_file:
+      - .env
+    environment:
+      - DYNADOT_API_KEY=${DYNADOT_API_KEY}
+      - ACME_EMAIL=${ACME_EMAIL:-you@example.com}
+    volumes:
+      - ./acme:/acme.sh
+      - ./letsencrypt:/output
+    command: >-
+      /bin/sh -c "set -e;
+      export DYNADOT_API_KEY=$${DYNADOT_API_KEY};
+      acme.sh --home /acme.sh --config-home /acme.sh --register-account -m $${ACME_EMAIL} || true;
+      acme.sh --home /acme.sh --config-home /acme.sh --issue --dns dns_dynadot -d km.videox.xyz -d www.km.videox.xyz;
+      mkdir -p /output/live/km.videox.xyz;
+      acme.sh --home /acme.sh --config-home /acme.sh --install-cert -d km.videox.xyz \
+        --fullchain-file /output/live/km.videox.xyz/fullchain.pem \
+        --key-file /output/live/km.videox.xyz/privkey.pem;
+      echo 'ACME issue done'"
+
+  acme_renew:
+    image: neilpang/acme.sh:latest
+    container_name: acme-renew
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DYNADOT_API_KEY=${DYNADOT_API_KEY}
+    volumes:
+      - ./acme:/acme.sh
+      - ./letsencrypt:/output
+    entrypoint: /bin/sh -c
+    command: >-
+      "trap exit TERM; while :; do \
+      export DYNADOT_API_KEY=$${DYNADOT_API_KEY}; \
+      acme.sh --home /acme.sh --config-home /acme.sh --cron; \
+      sleep 12h; done"
+

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡密查询</title>
+    <link href="/static/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
+        .container { max-width: 720px; margin-top: 2rem; }
+        .card { border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); }
+        .form-control-lg { font-size: 1.25rem; padding: 0.75rem; }
+        .btn-lg { font-size: 1.25rem; padding: 0.75rem 1.5rem; }
+        .copy-btn { margin-left: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card p-4">
+            <h1 class="text-center mb-4">卡密查询</h1>
+
+            <!-- 说明栏 -->
+            {% if notice %}
+            <div class="alert alert-info">
+                <h6 class="alert-heading">📋 使用说明</h6>
+                <div style="white-space: pre-line;">{{ notice | e }}</div>
+            </div>
+            {% endif %}
+
+            {% if error %}
+                <div class="alert alert-danger">{{ error | e }}</div>
+            {% endif %}
+            {% if account %}
+                <div class="mb-3 d-flex justify-content-between">
+                    <p class="mb-0"><strong>到期时间:</strong> <span id="expiry-date-display">{{ expiry_date | e }}</span></p>
+                    <p class="mb-0"><strong>查询次数:</strong> <span id="query-count-display">{{ query_count }}</span> / {{ max_query_count }}</p>
+                </div>
+                <div class="mb-3 d-flex align-items-center">
+                    <p class="me-2 mb-0"><strong>账号:</strong> {{ account | e }}</p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm copy-btn" onclick="copyText('{{ account | e }}')">复制</button>
+                </div>
+                <div class="mb-3 d-flex align-items-center">
+                    <p class="me-2 mb-0"><strong>密码:</strong> {{ password | e }}</p>
+                    <button type="button" class="btn btn-outline-secondary btn-sm copy-btn" onclick="copyText('{{ password | e }}')">复制</button>
+                </div>
+
+                <!-- 验证码功能 -->
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <p class="me-2 mb-0"><strong>验证码:</strong></p>
+                            <span id="captcha-code" class="badge bg-primary fs-6 me-2">点击查看</span>
+                            <button type="button" class="btn btn-outline-secondary btn-sm copy-btn" id="copy-captcha-btn" onclick="copyCaptcha()" style="display: none;">复制</button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success btn-sm me-2" onclick="getCaptcha()">查看验证码</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshCaptcha()" id="refresh-btn" style="display: none;">刷新</button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="form-text text-muted" id="captcha-notice">
+                            {{ captcha_notice | e if captcha_notice else '点击"查看验证码"获取最新的6位验证码' }}
+                        </small>
+                    </div>
+                </div>
+            {% endif %}
+            <form method="get">
+                <div class="mb-3">
+                    <input type="text" name="card_key" id="card_key" class="form-control form-control-lg" placeholder="请输入16位卡密" required pattern="[a-z0-9]{16}">
+                    <small class="form-text text-muted">卡密为16位字母、数字组合，示例：a1b2c3d4e5f6g7h8</small>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">查询</button>
+            </form>
+        </div>
+    </div>
+    <script src="/static/bootstrap.bundle.min.js"></script>
+    <script>
+        function copyText(text) {
+            // 尝试使用现代 Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopySuccess();
+                }).catch(err => {
+                    console.error('Clipboard API 失败:', err);
+                    fallbackCopy(text);
+                });
+            } else {
+                // 降级到传统方法
+                fallbackCopy(text);
+            }
+        }
+
+        function fallbackCopy(text) {
+            // 创建临时文本区域
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showCopySuccess();
+                } else {
+                    showCopyError();
+                }
+            } catch (err) {
+                console.error('传统复制方法失败:', err);
+                showCopyError();
+            }
+
+            document.body.removeChild(textArea);
+        }
+
+        function showCopySuccess() {
+            // 创建成功提示
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-success position-fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = '✅ 已复制到剪贴板';
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 2000);
+        }
+
+        function showCopyError() {
+            // 创建错误提示
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-danger position-fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = '❌ 复制失败，请手动复制';
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 3000);
+        }
+
+        // 通用复制函数，用于账号管理页面
+        function copyToClipboard(text) {
+            copyText(text);
+        }
+
+        // 验证码相关功能
+        let currentCaptcha = '';
+        let currentCardKey = '{{ card_key }}';
+
+        function getCaptcha() {
+            if (!currentCardKey) {
+                showToast('❌ 请先查询卡密', 'danger');
+                return;
+            }
+
+            const captchaElement = document.getElementById('captcha-code');
+            const copyBtn = document.getElementById('copy-captcha-btn');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const getCaptchaBtn = document.querySelector('button[onclick="getCaptcha()"]');
+
+            // 防止重复点击
+            if (getCaptchaBtn) {
+                getCaptchaBtn.disabled = true;
+                getCaptchaBtn.textContent = '获取中...';
+            }
+
+            // 显示加载状态
+            captchaElement.textContent = '获取中...';
+            captchaElement.className = 'badge bg-secondary fs-6 me-2';
+
+            // 发送请求获取验证码
+            fetch('/get-captcha', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    card_key: currentCardKey,
+                    last_captcha: currentCaptcha  // 传递上次的验证码
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        currentCaptcha = data.code;
+                        captchaElement.textContent = data.code;
+
+                        // 统一使用成功样式
+                        captchaElement.className = 'badge bg-success fs-6 me-2';
+
+                        copyBtn.style.display = 'inline-block';
+                        refreshBtn.style.display = 'inline-block';
+
+                        // 实时更新查询次数显示（只有验证码变化时才更新）
+                        if (data.code_changed) {
+                            const queryCountDisplay = document.getElementById('query-count-display');
+                            if (queryCountDisplay) {
+                                queryCountDisplay.textContent = data.query_count;
+                            }
+                        }
+
+                        // 实时更新到期时间显示
+                        if (data.expiry_date) {
+                            const expiryDateDisplay = document.getElementById('expiry-date-display');
+                            if (expiryDateDisplay) {
+                                expiryDateDisplay.textContent = data.expiry_date;
+                            }
+                        }
+
+                        // 检查是否用完次数，禁用按钮
+                        if (data.remaining_count <= 0) {
+                            const getCaptchaBtn = document.querySelector('button[onclick="getCaptcha()"]');
+                            const refreshBtn = document.getElementById('refresh-btn');
+                            if (getCaptchaBtn) {
+                                getCaptchaBtn.disabled = true;
+                                getCaptchaBtn.textContent = '次数已用完';
+                                getCaptchaBtn.className = 'btn btn-secondary btn-sm me-2';
+                            }
+                            if (refreshBtn) {
+                                refreshBtn.disabled = true;
+                                refreshBtn.textContent = '次数已用完';
+                                refreshBtn.className = 'btn btn-secondary btn-sm';
+                            }
+                            showToast('⚠️ 查询次数已用完', 'warning');
+                        } else {
+                            // 根据验证码是否变化显示不同提示
+                            if (data.code_changed) {
+                                showToast('✅ 验证码获取成功', 'success');
+                            } else {
+                                showToast('🔄 验证码未更新，请稍后查看', 'warning');
+                            }
+                        }
+
+                        // 恢复按钮状态（如果还有次数）
+                        if (data.remaining_count > 0) {
+                            if (getCaptchaBtn) {
+                                getCaptchaBtn.disabled = false;
+                                getCaptchaBtn.textContent = '查看验证码';
+                            }
+                            if (refreshBtn) {
+                                refreshBtn.disabled = false;
+                                refreshBtn.textContent = '刷新';
+                            }
+                        }
+                    } else {
+                        captchaElement.textContent = '获取失败';
+                        captchaElement.className = 'badge bg-danger fs-6 me-2';
+                        showToast('❌ ' + data.message, 'danger');
+
+                        // 恢复按钮状态
+                        if (getCaptchaBtn) {
+                            getCaptchaBtn.disabled = false;
+                            getCaptchaBtn.textContent = '查看验证码';
+                        }
+                        if (refreshBtn) {
+                            refreshBtn.disabled = false;
+                            refreshBtn.textContent = '刷新';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('获取验证码失败:', error);
+                    captchaElement.textContent = '网络错误';
+                    captchaElement.className = 'badge bg-danger fs-6 me-2';
+                    showToast('❌ 网络错误，请稍后重试', 'danger');
+
+                    // 恢复按钮状态
+                    if (getCaptchaBtn) {
+                        getCaptchaBtn.disabled = false;
+                        getCaptchaBtn.textContent = '查看验证码';
+                    }
+                    if (refreshBtn) {
+                        refreshBtn.disabled = false;
+                        refreshBtn.textContent = '刷新';
+                    }
+                });
+        }
+
+        function refreshCaptcha() {
+            // 更新按钮状态
+            const refreshBtn = document.getElementById('refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '刷新中...';
+            }
+
+            getCaptcha(); // 直接调用获取验证码函数
+        }
+
+        function copyCaptcha() {
+            if (currentCaptcha) {
+                copyText(currentCaptcha);
+            }
+        }
+
+        function showToast(message, type) {
+            // 创建提示
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} position-fixed`;
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                }
+            }, 3000);
+        }
+
+        // 卡密输入限制：只允许小写字母和数字
+        document.addEventListener('DOMContentLoaded', function() {
+            const cardKeyInput = document.getElementById('card_key');
+            if (cardKeyInput) {
+                cardKeyInput.addEventListener('input', function() {
+                    // 转换为小写并只保留字母和数字
+                    this.value = this.value.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 16);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

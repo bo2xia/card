@@ -1,0 +1,834 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}卡密管理{% endblock %}
+{% block page_title %}卡密管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .copy-item {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 12px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        max-width: 200px;
+    }
+    .copy-item:hover {
+        background: #e9ecef;
+        border-color: #adb5bd;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .copy-item.card {
+        color: #0d6efd;
+        border-color: #b6d7ff;
+        background: #f0f8ff;
+    }
+    .copy-item.card:hover {
+        background: #e6f3ff;
+        border-color: #0d6efd;
+    }
+    .copy-item .copy-icon {
+        margin-left: 8px;
+        opacity: 0.6;
+        font-size: 0.75rem;
+        transition: opacity 0.2s ease;
+    }
+    .copy-item:hover .copy-icon {
+        opacity: 1;
+    }
+    .copy-item .text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+    }
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .filter-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 卡密统计卡片 -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="stats-label">总卡密数</p>
+                    <h4 class="stats-number">{{ cards|length }}</h4>
+                </div>
+                <div class="text-primary">
+                    <i class="fas fa-credit-card fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="stats-label">已使用</p>
+                    <h4 class="stats-number text-info">{{ cards|selectattr('first_used_at')|list|length }}</h4>
+                </div>
+                <div class="text-info">
+                    <i class="fas fa-check-circle fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="stats-label">未使用</p>
+                    <h4 class="stats-number text-warning">{{ cards|rejectattr('first_used_at')|list|length }}</h4>
+                </div>
+                <div class="text-warning">
+                    <i class="fas fa-clock fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="stats-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <p class="stats-label">今日查询</p>
+                    <h4 class="stats-number text-success">0</h4>
+                </div>
+                <div class="text-success">
+                    <i class="fas fa-search fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 主要内容卡片 -->
+<div class="content-card">
+    <div class="content-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5><i class="fas fa-credit-card text-primary"></i> 卡密列表</h5>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-success btn-sm" onclick="exportCards()">
+                    <i class="fas fa-download"></i> 导出卡密
+                </button>
+                <button type="button" class="btn btn-info btn-sm" onclick="showImportModal()">
+                    <i class="fas fa-upload"></i> 导入卡密
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addCardModal">
+                    <i class="fas fa-plus"></i> 添加卡密
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="content-body">
+        <!-- 筛选区域 -->
+        <div class="filter-section">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">按账号筛选</label>
+                    <select class="form-select form-select-sm" id="accountFilter">
+                        <option value="">所有账号</option>
+                        {% for account in unique_accounts %}
+                        <option value="{{ account }}">{{ account }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">按状态筛选</label>
+                    <select class="form-select form-select-sm" id="statusFilter">
+                        <option value="">所有状态</option>
+                        <option value="未使用">未使用</option>
+                        <option value="已使用">已使用</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">搜索卡密</label>
+                    <input type="text" class="form-control form-control-sm" id="cardSearch" placeholder="输入卡密进行搜索...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                            <i class="fas fa-times"></i> 清除筛选
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量操作区域 -->
+        {% if cards %}
+        <div class="card mb-3" id="batchOperations" style="display: none;">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center">
+                    <span class="me-3">
+                        <i class="fas fa-check-circle text-primary"></i>
+                        已选择 <span id="selectedCount">0</span> 个卡密
+                    </span>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-primary" onclick="batchRebind()">
+                            <i class="fas fa-exchange-alt"></i> 批量换绑
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" onclick="batchDelete()">
+                            <i class="fas fa-trash"></i> 批量删除
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 卡密表格 -->
+        <div class="table-container">
+            <table class="table table-hover mb-0" id="cardsTable">
+                <thead>
+                    <tr>
+                        <th width="3%">
+                            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                        </th>
+                        <th width="5%">序号</th>
+                        <th width="18%">卡密</th>
+                        <th width="12%">账号</th>
+                        <th width="10%">状态</th>
+                        <th width="13%">创建时间</th>
+                        <th width="13%">首次使用</th>
+                        <th width="13%">到期时间</th>
+                        <th width="13%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for card in cards %}
+                    <tr class="card-row"
+                        data-account="{{ card.username }}"
+                        data-status="{{ '已使用' if card.first_used_at else '未使用' }}"
+                        data-card="{{ card.card_number }}">
+                        <td>
+                            <input type="checkbox" class="card-checkbox" value="{{ card.card_number }}" data-account="{{ card.username }}">
+                        </td>
+                        <td>{{ card.index }}</td>
+                        <td>
+                            <div class="copy-item card"
+                                 data-card="{{ card.card_number }}"
+                                 title="点击复制卡密">
+                                <span class="text">{{ card.card_number }}</span>
+                                <i class="fas fa-copy copy-icon"></i>
+                            </div>
+                        </td>
+                        <td>
+                            <strong>{{ card.username }}</strong>
+                        </td>
+                        <td>
+                            {% if card.first_used_at %}
+                                <span class="badge bg-info status-badge">已使用</span>
+                            {% else %}
+                                <span class="badge bg-warning status-badge">未使用</span>
+                            {% endif %}
+                            {% if card.extracted %}
+                                <span class="badge bg-success status-badge ms-1">已提取</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ card.created_at }}</small>
+                        </td>
+                        <td>
+                            {% if card.first_used_at %}
+                                <small class="text-muted">{{ card.first_used_at }}</small>
+                            {% else %}
+                                <small class="text-muted">-</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ card.expiry_date }}</small>
+                        </td>
+                        <td>
+                            <span class="text-primary me-2" style="cursor: pointer; text-decoration: underline;"
+                                  onclick="rebindCard('{{ card.card_number | e }}', '{{ card.username | e }}')"
+                                  title="换绑账号">
+                                换绑
+                            </span>
+                            <span class="text-danger" style="cursor: pointer; text-decoration: underline;"
+                                  onclick="deleteCard('{{ card.card_number | e }}')"
+                                  title="删除卡密">
+                                删除
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页导航 -->
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="卡密列表分页">
+            <ul class="pagination justify-content-center">
+                <!-- 上一页 -->
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('cards', page=pagination.prev_num, search=search_query) }}">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="fas fa-chevron-left"></i> 上一页</span>
+                </li>
+                {% endif %}
+
+                <!-- 页码 -->
+                {% for page_num in pagination.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != pagination.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('cards', page=page_num, search=search_query) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">…</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 下一页 -->
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('cards', page=pagination.next_num, search=search_query) }}">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">下一页 <i class="fas fa-chevron-right"></i></span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- 分页信息 -->
+        <div class="text-center text-muted small">
+            显示第 {{ (pagination.page - 1) * 10 + 1 }} - {{ pagination.page * 10 if pagination.page * 10 <= pagination.total else pagination.total }} 条，
+            共 {{ pagination.total }} 条记录，第 {{ pagination.page }} / {{ pagination.pages }} 页
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">暂无卡密数据</h5>
+            <p class="text-muted">点击上方"添加卡密"按钮开始添加卡密</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 导入卡密模态框 -->
+<div class="modal fade" id="importCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导入卡密</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/admin/import_cards" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择CSV文件</label>
+                        <input type="file" name="import_file" class="form-control" accept=".csv" required>
+                        <div class="form-text">
+                            CSV格式：序号,卡密,账号,状态,创建时间,首次使用,到期时间,查询次数<br>
+                            示例：1,CARD123456789,test001,未使用,2024-01-01 12:00:00,,2024-02-01 12:00:00,0
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-info">导入卡密</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 添加卡密模态框 -->
+<div class="modal fade" id="addCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">添加卡密</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/admin/add_card">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择账号</label>
+                        <select name="username" class="form-select" required>
+                            <option value="">请选择账号</option>
+                            {% for account in available_accounts %}
+                            <option value="{{ account.username }}">{{ account.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">卡密</label>
+                        <input type="text" name="card_number" class="form-control" placeholder="留空自动生成" maxlength="20">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">最大查询次数</label>
+                        <input type="number" name="max_query_count" class="form-control" value="88" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">有效期（小时）</label>
+                        <input type="number" name="duration_hours" class="form-control" value="720" min="1" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">添加卡密</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- 换绑卡密模态框 -->
+<div class="modal fade" id="rebindModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">换绑卡密</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="rebindForm" method="POST" action="{{ url_for('rebind_card') }}">
+                <div class="modal-body">
+                    <input type="hidden" name="card_numbers" id="rebindCardNumbers">
+                    <div class="mb-3">
+                        <label class="form-label">选择新账号</label>
+                        <select name="new_account" class="form-select" required id="rebindAccountSelect">
+                            <option value="">请选择账号</option>
+                            {% for account in available_accounts %}
+                            <option value="{{ account.username }}">{{ account.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">
+                            可输入账号名进行搜索，共 {{ available_accounts|length }} 个账号可选
+                        </small>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        将选中的卡密换绑到新账号下
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">确认换绑</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 卡密复制功能
+function initializeCardCopy() {
+    document.querySelectorAll('.copy-item.card').forEach(element => {
+        element.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const cardNumber = this.getAttribute('data-card') || this.querySelector('.text').textContent.trim();
+            copyToClipboard(cardNumber, '卡密');
+        });
+    });
+}
+
+// 复制到剪贴板函数
+function copyToClipboard(text, type = '内容') {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            showMessage(`${type}已复制到剪贴板`, 'success');
+        }).catch(() => {
+            showMessage(`复制失败，请手动复制：${text}`, 'warning');
+        });
+    } else {
+        // 兼容旧浏览器
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showMessage(`${type}已复制到剪贴板`, 'success');
+        } catch (err) {
+            showMessage(`复制失败，请手动复制：${text}`, 'warning');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+// 筛选功能
+function initializeFilters() {
+    const accountFilter = document.getElementById('accountFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const cardSearch = document.getElementById('cardSearch');
+    
+    function applyFilters() {
+        const selectedAccount = accountFilter.value;
+        const selectedStatus = statusFilter.value;
+        const searchTerm = cardSearch.value.toLowerCase();
+        
+        const rows = document.querySelectorAll('.card-row');
+        rows.forEach(row => {
+            const account = row.getAttribute('data-account');
+            const status = row.getAttribute('data-status');
+            const cardNumber = row.getAttribute('data-card').toLowerCase();
+            
+            let show = true;
+            
+            if (selectedAccount && account !== selectedAccount) {
+                show = false;
+            }
+            
+            if (selectedStatus && status !== selectedStatus) {
+                show = false;
+            }
+            
+            if (searchTerm && !cardNumber.includes(searchTerm)) {
+                show = false;
+            }
+            
+            row.style.display = show ? '' : 'none';
+        });
+    }
+    
+    if (accountFilter) accountFilter.addEventListener('change', applyFilters);
+    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+    if (cardSearch) cardSearch.addEventListener('input', applyFilters);
+}
+
+function clearFilters() {
+    document.getElementById('accountFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('cardSearch').value = '';
+    
+    // 显示所有行
+    document.querySelectorAll('.card-row').forEach(row => {
+        row.style.display = '';
+    });
+}
+
+// 导出卡密
+function exportCards() {
+    showMessage('正在导出卡密数据...', 'info');
+    
+    fetch('/admin/export_cards', {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = 'cards_data.csv';
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1].replace(/['"]/g, '');
+            }
+        }
+        
+        return response.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        showMessage('卡密数据导出成功！', 'success');
+    })
+    .catch(error => {
+        console.error('Export error:', error);
+        showMessage('导出失败：' + error.message, 'danger');
+    });
+}
+
+// 其他功能函数
+function showImportModal() {
+    const modal = new bootstrap.Modal(document.getElementById('importCardModal'));
+    modal.show();
+}
+
+function deleteCard(cardNumber) {
+    if (confirm(`确定要删除卡密 ${cardNumber} 吗？`)) {
+        fetch(`/admin/delete_card/${encodeURIComponent(cardNumber)}`, {
+            method: 'POST',
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('卡密删除成功', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                showMessage('删除失败: ' + data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Delete error:', error);
+            showMessage('删除失败: 网络错误', 'danger');
+        });
+    }
+}
+
+// 右侧弹出式消息显示函数
+function showMessage(message, type = 'info') {
+    // 创建消息容器（如果不存在）
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 350px;
+        `;
+        document.body.appendChild(toastContainer);
+    }
+
+    // 创建toast元素
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'danger' ? 'danger' : type === 'warning' ? 'warning' : 'primary'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+
+    toastContainer.appendChild(toast);
+
+    // 显示toast
+    const bsToast = new bootstrap.Toast(toast, {
+        autohide: true,
+        delay: 3000
+    });
+    bsToast.show();
+
+    // 移除已隐藏的toast
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// 全选/取消全选
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.card-checkbox');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+
+    updateBatchOperations();
+}
+
+// 更新批量操作区域
+function updateBatchOperations() {
+    const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+    const count = checkboxes.length;
+    const batchOperations = document.getElementById('batchOperations');
+    const selectedCount = document.getElementById('selectedCount');
+
+    if (count > 0) {
+        batchOperations.style.display = 'block';
+        selectedCount.textContent = count;
+    } else {
+        batchOperations.style.display = 'none';
+    }
+
+    // 更新全选状态
+    const allCheckboxes = document.querySelectorAll('.card-checkbox');
+    const selectAll = document.getElementById('selectAll');
+    selectAll.checked = allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length;
+}
+
+// 单个换绑
+function rebindCard(cardNumber, currentAccount) {
+    document.getElementById('rebindCardNumbers').value = cardNumber;
+
+    // 屏蔽当前账号
+    const accountSelect = document.querySelector('#rebindModal select[name="new_account"]');
+    const options = accountSelect.querySelectorAll('option');
+
+    options.forEach(option => {
+        if (option.value === currentAccount) {
+            option.disabled = true;
+            option.style.color = '#999';
+            option.textContent = option.textContent + ' (当前账号)';
+        } else {
+            option.disabled = false;
+            option.style.color = '';
+            option.textContent = option.textContent.replace(' (当前账号)', '');
+        }
+    });
+
+    // 重置选择
+    accountSelect.value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('rebindModal'));
+    modal.show();
+}
+
+// 批量换绑
+function batchRebind() {
+    const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showMessage('请先选择要换绑的卡密', 'warning');
+        return;
+    }
+
+    const cardNumbers = Array.from(checkboxes).map(cb => cb.value).join(',');
+    document.getElementById('rebindCardNumbers').value = cardNumbers;
+
+    // 获取选中卡密的当前账号，用于屏蔽
+    const currentAccounts = Array.from(checkboxes).map(cb => cb.getAttribute('data-account'));
+    const uniqueCurrentAccounts = [...new Set(currentAccounts)];
+
+    // 屏蔽当前账号
+    const accountSelect = document.querySelector('#rebindModal select[name="new_account"]');
+    const options = accountSelect.querySelectorAll('option');
+
+    options.forEach(option => {
+        if (uniqueCurrentAccounts.includes(option.value)) {
+            option.disabled = true;
+            option.style.color = '#999';
+            if (!option.textContent.includes('(当前账号)')) {
+                option.textContent = option.textContent + ' (当前账号)';
+            }
+        } else {
+            option.disabled = false;
+            option.style.color = '';
+            option.textContent = option.textContent.replace(' (当前账号)', '');
+        }
+    });
+
+    // 重置选择
+    accountSelect.value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('rebindModal'));
+    modal.show();
+}
+
+// 批量删除
+function batchDelete() {
+    const checkboxes = document.querySelectorAll('.card-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showMessage('请先选择要删除的卡密', 'warning');
+        return;
+    }
+
+    if (confirm(`确定要删除选中的 ${checkboxes.length} 个卡密吗？此操作不可恢复！`)) {
+        const cardNumbers = Array.from(checkboxes).map(cb => cb.value);
+
+        // 发送批量删除请求
+        fetch('/admin/batch_delete_cards', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                card_numbers: cardNumbers
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage(data.message, 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                showMessage(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showMessage('删除失败，请稍后重试', 'danger');
+        });
+    }
+}
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('卡密管理页面加载完成');
+    initializeCardCopy();
+    initializeFilters();
+
+    // 绑定复选框事件
+    document.querySelectorAll('.card-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateBatchOperations);
+    });
+
+    // 为换绑账号选择框添加搜索功能
+    const rebindSelect = document.getElementById('rebindAccountSelect');
+    if (rebindSelect) {
+        // 使搜索框可编辑
+        rebindSelect.setAttribute('data-live-search', 'true');
+
+        // 添加键盘事件监听
+        rebindSelect.addEventListener('keyup', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const options = rebindSelect.querySelectorAll('option');
+
+            options.forEach(option => {
+                if (option.value === '') return; // 跳过默认选项
+
+                const text = option.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

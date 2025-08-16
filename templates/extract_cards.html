@@ -1,0 +1,180 @@
+{% extends 'dashboard_base.html' %}
+{% block title %}提取卡密{% endblock %}
+{% block page_title %}提取卡密{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      <div class="row g-3 align-items-end">
+        <div class="col-sm-4">
+          <label class="form-label">选择账号(可选)</label>
+          <select name="account" class="form-select">
+            <option value="">默认(任意未被提取的卡)</option>
+            {% for a in accounts %}
+              <option value="{{ a.username }}">{{ a.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label">仅可用卡</label>
+          <select name="only_active" class="form-select">
+            <option value="1">是</option>
+            <option value="0">否</option>
+          </select>
+        </div>
+        <div class="col-sm-2">
+          <button type="submit" class="btn btn-primary">提取一个卡密</button>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label">批量数量</label>
+          <input type="number" name="count" class="form-control" min="1" max="100" value="1">
+        </div>
+        <div class="col-sm-2">
+          <button type="submit" formaction="{{ url_for('extract_cards_batch') }}" class="btn btn-outline-primary">批量提取</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="mt-2 d-flex gap-2 flex-wrap">
+      <a class="btn btn-success btn-sm" href="{{ url_for('export_extract_results') }}">导出本次提取结果CSV</a>
+      <a class="btn btn-secondary btn-sm" href="{{ url_for('export_extract_records') }}">导出最近记录CSV</a>
+      {% if last_results and last_results|length > 0 %}
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="copyAllLinksBtn">一键复制所有链接</button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if extracted %}
+<div class="alert alert-success mt-3">
+  <div><strong>已提取卡密:</strong> {{ extracted.card_key }}</div>
+  <div>账号: {{ extracted.username }}</div>
+  <div>创建时间: {{ extracted.created_at|default('') }}</div>
+</div>
+{% endif %}
+
+<!-- 提取结果弹窗 -->
+<div class="modal fade" id="extractedModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">提取结果</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">访问链接（点击复制）</label>
+        <input type="text" class="form-control" id="extractedLink" value="" readonly>
+        <div class="form-text">链接示例：https://km.videox.xyz/query?card_key=XXXX，点击上方输入框可复制</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+        <button type="button" class="btn btn-primary" id="copyExtractBtn">复制链接</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h5 class="mt-4">最近提取记录</h5>
+<table class="table table-sm table-striped align-middle">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>卡密</th>
+      <th>账号</th>
+      <th>提取人</th>
+      <th>时间</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in records %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td class="font-monospace">{{ r.card_key }}</td>
+      <td>{{ r.assigned_account or '' }}</td>
+      <td>{{ r.extracted_by }}</td>
+      <td>{{ format_beijing_time(r.extracted_at) }}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger" onclick="revokeExtract('{{ r.card_key }}')">撤销</button>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-muted">暂无记录</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% block extra_js %}
+<script>
+function revokeExtract(cardKey){
+  // 无需二次确认，直接撤销
+  fetch(`/admin/extract/revoke/${encodeURIComponent(cardKey)}`, {
+    method: 'POST', credentials: 'same-origin'
+  }).then(r=>r.json()).then(d=>{
+    if(d.success){
+      toast('已撤销，该卡可再次被提取');
+      setTimeout(()=>location.reload(), 600);
+    }else{
+      toast(d.message || '操作失败', 'warning');
+    }
+  }).catch(()=>toast('网络错误', 'warning'));
+}
+
+// 若本次有提取结果，则弹窗显示链接，并支持点击复制
+(function(){
+  // 使用 session 中的 last_results 作为是否弹窗的依据
+  const lastResults = {{ last_results|tojson if last_results else '[]' }};
+  const buildLink = (ck) => `https://km.videox.xyz/query?card_key=${encodeURIComponent(ck)}`;
+  if(Array.isArray(lastResults) && lastResults.length>0){
+    const first = lastResults[0];
+    const link = buildLink(first.card_key);
+    const input = document.getElementById('extractedLink');
+    const btn = document.getElementById('copyExtractBtn');
+    let modalInst = null;
+    if(input){
+      input.value = link;
+      const doCopy = async () => {
+        try{
+          if(navigator.clipboard && navigator.clipboard.writeText){
+            await navigator.clipboard.writeText(link);
+          }else{
+            input.select(); document.execCommand('copy');
+          }
+          toast('已复制链接');
+          if(modalInst){ modalInst.hide(); }
+        }catch(e){ toast('复制失败，请手动复制','warning'); }
+      };
+      input.addEventListener('click', doCopy);
+      if(btn){ btn.addEventListener('click', doCopy); }
+    }
+    const modalEl = document.getElementById('extractedModal');
+    if(modalEl){ modalInst = new bootstrap.Modal(modalEl); modalInst.show(); }
+  }
+
+  // 一键复制所有链接
+  const copyAllBtn = document.getElementById('copyAllLinksBtn');
+  if(copyAllBtn && Array.isArray(lastResults) && lastResults.length>0){
+    copyAllBtn.addEventListener('click', async ()=>{
+      const links = lastResults.map(r=>buildLink(r.card_key)).join('\n');
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          await navigator.clipboard.writeText(links);
+        }else{
+          // fallback
+          const ta=document.createElement('textarea'); ta.value=links; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        }
+        toast('已将全部链接复制到剪贴板');
+      }catch(e){ toast('复制失败，请手动复制', 'warning'); }
+    });
+  }
+})();
+// 简易toast（复用dashboard里的showMessage同类效果）
+function toast(msg, type='success'){
+  if(window.showMessage){ showMessage(msg, type==='warning'?'warning':'success'); return; }
+  try{ console.log(msg); }catch(e){}
+}
+</script>
+{% endblock %}
+{% endblock %}
+

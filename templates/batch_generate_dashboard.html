@@ -1,0 +1,165 @@
+{% extends "dashboard_base.html" %}
+
+{% block title %}批量生成{% endblock %}
+{% block page_title %}批量生成卡密{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="content-card">
+            <div class="content-header">
+                <h5><i class="fas fa-layer-group text-primary"></i> 批量生成卡密</h5>
+            </div>
+            <div class="content-body">
+                <form method="POST">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">选择账号</label>
+                            <select name="account" class="form-select" required>
+                                <option value="">请选择账号</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.username }}">{{ account.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">生成数量</label>
+                            <input type="number" name="count" class="form-control" placeholder="输入要生成的卡密数量" min="1" max="1000" value="10" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">最大查询次数</label>
+                            <input type="number" name="max_query_count" class="form-control" placeholder="输入最大查询次数" min="1" value="88" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label">有效期（小时）</label>
+                            <input type="number" name="duration_hours" class="form-control" placeholder="输入有效期小时数" min="1" value="720" required>
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-outline-secondary" onclick="history.back()">
+                                    <i class="fas fa-arrow-left"></i> 返回
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-plus-circle"></i> 批量生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 使用说明 -->
+        <div class="content-card mt-4">
+            <div class="content-header">
+                <h6><i class="fas fa-info-circle text-primary"></i> 使用说明</h6>
+            </div>
+            <div class="content-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success me-2"></i>
+                        选择要生成卡密的账号
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success me-2"></i>
+                        输入要生成的卡密数量（建议不超过1000个）
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check text-success me-2"></i>
+                        设置最大查询次数（默认10次）
+                    </li>
+                    <li class="mb-0">
+                        <i class="fas fa-check text-success me-2"></i>
+                        设置卡密有效期（默认720小时/30天）
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('批量生成页面加载完成');
+
+    // 检查URL参数，预选账号
+    const urlParams = new URLSearchParams(window.location.search);
+    const preselectedAccount = urlParams.get('account');
+    if (preselectedAccount) {
+        const accountSelect = document.querySelector('select[name="account"]');
+        if (accountSelect) {
+            accountSelect.value = preselectedAccount;
+            showMessage(`已预选账号: ${preselectedAccount}`, 'info');
+        }
+    }
+
+    // 表单验证
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const username = document.querySelector('select[name="account"]').value;
+            const count = document.querySelector('input[name="count"]').value;
+            const maxQueryCount = document.querySelector('input[name="max_query_count"]').value;
+            const durationHours = document.querySelector('input[name="duration_hours"]').value;
+
+            if (!username) {
+                e.preventDefault();
+                showMessage('请选择账号', 'warning');
+                return;
+            }
+
+            if (!count || count <= 0) {
+                e.preventDefault();
+                showMessage('请输入有效的生成数量', 'warning');
+                return;
+            }
+
+            if (count > 1000) {
+                e.preventDefault();
+                showMessage('单次生成数量不能超过1000个', 'warning');
+                return;
+            }
+
+            if (!maxQueryCount || maxQueryCount <= 0) {
+                e.preventDefault();
+                showMessage('请输入有效的最大查询次数', 'warning');
+                return;
+            }
+
+            if (!durationHours || durationHours <= 0) {
+                e.preventDefault();
+                showMessage('请输入有效的有效期小时数', 'warning');
+                return;
+            }
+            
+            // 显示加载状态
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 生成中...';
+        });
+    }
+});
+
+function showMessage(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const content = document.querySelector('.dashboard-content');
+    content.insertBefore(alertDiv, content.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}

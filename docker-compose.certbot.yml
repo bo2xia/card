@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  certbot_init:
+    image: certbot/certbot:latest
+    container_name: certbot-init
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./letsencrypt:/etc/letsencrypt
+    command: >-
+      certonly --webroot -w /var/www/certbot
+      -d km.videox.xyz -d www.km.videox.xyz
+      --email ${ACME_EMAIL} --agree-tos --non-interactive
+
+  certbot_renew:
+    image: certbot/certbot:latest
+    container_name: certbot-renew
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./letsencrypt:/etc/letsencrypt
+    entrypoint: /bin/sh -c
+    command: >-
+      "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot
+      && echo 'Renew done'; sleep 12h & wait $${!}; done"
+
