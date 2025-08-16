@@ -77,9 +77,9 @@ check_system() {
         exit 1
     fi
 
-    # 检查docker-compose
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        log_error "Docker Compose未安装"
+    # 检查docker compose
+    if ! docker compose version &> /dev/null; then
+        log_error "Docker Compose未安装或版本过低，请安装Docker Compose V2"
         exit 1
     fi
 
@@ -221,14 +221,14 @@ create_directories() {
 cleanup_old() {
     log_step "清理旧部署..."
 
-    # 使用docker-compose停止服务
+    # 使用docker compose停止服务
     if [ -f "docker-compose.yml" ]; then
-        docker-compose down --remove-orphans 2>/dev/null || true
+        docker compose down --remove-orphans 2>/dev/null || true
         log_info "开发环境Docker Compose服务已停止"
     fi
 
     if [ -f "docker-compose.prod.yml" ]; then
-        docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+        docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
         log_info "生产环境Docker Compose服务已停止"
     fi
 
@@ -390,7 +390,7 @@ start_service() {
         fi
 
         log_info "启动生产环境服务 (HTTP + HTTPS)..."
-        if docker-compose -f docker-compose.prod.yml up -d; then
+        if docker compose -f docker-compose.prod.yml up -d; then
             log_info "生产环境服务启动成功"
         else
             log_error "生产环境服务启动失败"
@@ -403,7 +403,7 @@ start_service() {
         fi
 
         log_info "启动开发环境服务 (HTTP only)..."
-        if docker-compose up -d; then
+        if docker compose up -d; then
             log_info "开发环境服务启动成功"
         else
             log_error "开发环境服务启动失败"
@@ -450,9 +450,9 @@ wait_service() {
     # 显示容器日志以便调试
     log_info "显示容器日志:"
     if [ "$DEPLOYMENT_MODE" = "prod" ]; then
-        docker-compose -f docker-compose.prod.yml logs --tail=20
+        docker compose -f docker-compose.prod.yml logs --tail=20
     else
-        docker-compose logs --tail=20
+        docker compose logs --tail=20
     fi
 
     return 1
@@ -622,11 +622,11 @@ show_result() {
         echo "  🌐 HTTP主页:      http://localhost:${HTTP_PORT} (自动重定向到HTTPS)"
         echo ""
         echo -e "${GREEN}🛠️  管理命令 (生产模式):${NC}"
-        echo "  📊 查看状态: docker-compose -f docker-compose.prod.yml ps"
-        echo "  📋 查看应用日志: docker-compose -f docker-compose.prod.yml logs card-query-app"
-        echo "  📋 查看Nginx日志: docker-compose -f docker-compose.prod.yml logs nginx"
-        echo "  ⏹️  停止服务: docker-compose -f docker-compose.prod.yml down"
-        echo "  🔄 重启服务: docker-compose -f docker-compose.prod.yml restart"
+        echo "  📊 查看状态: docker compose -f docker-compose.prod.yml ps"
+        echo "  📋 查看应用日志: docker compose -f docker-compose.prod.yml logs card-query-app"
+        echo "  📋 查看Nginx日志: docker compose -f docker-compose.prod.yml logs nginx"
+        echo "  ⏹️  停止服务: docker compose -f docker-compose.prod.yml down"
+        echo "  🔄 重启服务: docker compose -f docker-compose.prod.yml restart"
     else
         echo -e "${GREEN}📱 访问地址 (开发模式):${NC}"
         echo "  🌐 主页:        http://localhost:${APP_PORT}"
@@ -634,10 +634,10 @@ show_result() {
         echo "  🔍 卡密查询:    http://localhost:${APP_PORT}/query"
         echo ""
         echo -e "${GREEN}🛠️  管理命令 (开发模式):${NC}"
-        echo "  📊 查看状态: docker-compose ps"
-        echo "  📋 查看日志: docker-compose logs"
-        echo "  ⏹️  停止服务: docker-compose down"
-        echo "  🔄 重启服务: docker-compose restart"
+        echo "  📊 查看状态: docker compose ps"
+        echo "  📋 查看日志: docker compose logs"
+        echo "  ⏹️  停止服务: docker compose down"
+        echo "  🔄 重启服务: docker compose restart"
     fi
 
     echo ""
@@ -781,7 +781,7 @@ main() {
             echo ""
             echo -e "${YELLOW}未检测到Let’s Encrypt证书：${NC}"
             echo "  1) 推荐：先运行一次 ACME 签发（DNS-01 / Dynadot）："
-            echo "     docker-compose -f docker-compose.acme.yml run --rm acme_issue"
+            echo "     docker compose -f docker-compose.acme.yml run --rm acme_issue"
             echo "  2) 或使用自签名证书（临时）：继续生成 ssl/cert.pem ssl/key.pem"
             echo ""
             read -p "是否现在生成自签名证书以继续部署? (y/N): " gen_self
